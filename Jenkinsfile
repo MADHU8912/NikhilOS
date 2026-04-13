@@ -2,14 +2,9 @@ pipeline {
     agent any
 
     stages {
-        stage('Checkout SCM') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Checkout') {
             steps {
+                checkout scm
                 bat 'dir'
                 echo 'Source checked successfully'
             }
@@ -23,31 +18,42 @@ pipeline {
 
         stage('Build Bootloader') {
             steps {
-                bat 'if not exist bootloader exit /b 1'
-                bat 'echo Bootloader build step running'
-                bat 'dir bootloader'
+                bat '''
+                if not exist boot.asm exit /b 1
+                docker run --rm -v "%cd%:/workspace" -w /workspace nikhilos-builder nasm -f bin boot.asm -o boot.bin
+                if not exist boot.bin exit /b 1
+                '''
             }
         }
 
         stage('Build Kernel') {
             steps {
-                bat 'if not exist kernel exit /b 1'
-                bat 'echo Kernel build step running'
-                bat 'dir kernel'
+                bat '''
+                if not exist kernel.c exit /b 1
+                if not exist kernel_entry.asm exit /b 1
+                if not exist linker.ld exit /b 1
+
+                docker run --rm -v "%cd%:/workspace" -w /workspace nikhilos-builder nasm -f elf32 kernel_entry.asm -o kernel_entry.o
+                docker run --rm -v "%cd%:/workspace" -w /workspace nikhilos-builder gcc -m32 -ffreestanding -c kernel.c -o kernel.o
+                docker run --rm -v "%cd%:/workspace" -w /workspace nikhilos-builder ld -m elf_i386 -T linker.ld -o kernel.bin kernel_entry.o kernel.o
+
+                if not exist kernel.bin exit /b 1
+                '''
             }
         }
 
         stage('Create OS Image') {
             steps {
-                bat 'echo Creating OS image...'
-                bat 'mkdir output 2>nul'
-                bat 'echo dummy> output\\nikhilos.img'
+                bat '''
+                copy /b boot.bin+kernel.bin os-image.bin
+                if not exist os-image.bin exit /b 1
+                '''
             }
         }
 
         stage('Archive Image') {
             steps {
-                archiveArtifacts artifacts: 'output/*.img', fingerprint: true
+                archiveArtifacts artifacts: 'os-image.bin', fingerprint: true
             }
         }
     }
@@ -59,23 +65,5 @@ pipeline {
         failure {
             echo 'Build failed. Check the failed stage console output.'
         }
-    }
-}
-stage('Build Bootloader') {
-    steps {
-        bat '''
-        echo ===== CURRENT PATH =====
-        cd
-        echo ===== FILES =====
-        dir
-        echo ===== CHECK BOOTLOADER =====
-        if exist bootloader (
-            echo bootloader found
-            dir bootloader
-        ) else (
-            echo bootloader not found
-            exit /b 1
-        )
-        '''
     }
 }
