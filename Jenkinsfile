@@ -61,3 +61,18 @@ pipeline {
         }
     }
 }
+stage('Build Bootloader') {
+    steps {
+        bat '''
+        echo Checking bootloader folder...
+        dir
+        if exist bootloader (
+            echo bootloader folder found
+            dir bootloader
+        ) else (
+            echo bootloader folder NOT found
+            exit /b 1
+        )
+        '''
+    }
+}
