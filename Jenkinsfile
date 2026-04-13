@@ -64,13 +64,16 @@ pipeline {
 stage('Build Bootloader') {
     steps {
         bat '''
-        echo Checking bootloader folder...
+        echo ===== CURRENT PATH =====
+        cd
+        echo ===== FILES =====
         dir
+        echo ===== CHECK BOOTLOADER =====
         if exist bootloader (
-            echo bootloader folder found
+            echo bootloader found
             dir bootloader
         ) else (
-            echo bootloader folder NOT found
+            echo bootloader not found
             exit /b 1
         )
         '''
